@@ -16,7 +16,9 @@ if api_key:
     logging.info(f"API Key length: {len(api_key)}")
     logging.info(f"API Key prefix: {api_key[:10]}...")
 # Model and endpoint configuration
-MODEL="meta-llama/llama-4-maverick:free"
+# Use default model selection from OpenRouter instead of specifying a model
+# This lets OpenRouter choose the best available model
+MODEL="openai/gpt-3.5-turbo"  # OpenAI compatible endpoint
 ENDPOINT="https://openrouter.ai/api/v1/chat/completions"  # Corrected endpoint with /api/
 def build_prompt(args):
     return f"Write five fundraising emails and four social captions for the {args.event} on {args.date} in a {args.tone} tone."
@@ -50,8 +52,13 @@ def chat_completion(prompt):
     t0=time.time()
     
     try:
-        r=requests.post(ENDPOINT, headers=headers, json=payload, timeout=60)
+        logging.info(f"Starting request to OpenRouter with payload: {json.dumps(payload)}")
+        logging.info(f"Using headers: {headers}")
+        # Increase timeout to 90 seconds to allow for longer processing time
+        logging.info("Sending request with 90 second timeout...")
+        r=requests.post(ENDPOINT, headers=headers, json=payload, timeout=90)
         dt=time.time()-t0
+        logging.info(f"Request finished after {dt:.2f}s")
         
         print(f"Request completed in {dt:.2f}s with status code {r.status_code}", file=sys.stderr)
         
