@@ -65,3 +65,4 @@ Best, [Your Name]
 4. "The countdown begins! Only a few weeks left until our Spring Gala on May 30th, 2025. Don't miss out on the fun! Buy your tickets or make a donation today! #SpringGala2025 #Countdown #GalaNight"
 
 # this is a test to change a file so i can make another commit + push from my IDE
+# this is a test to change a file so i can make another commit + push from my IDE
