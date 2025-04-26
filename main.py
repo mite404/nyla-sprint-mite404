@@ -1,20 +1,78 @@
 import argparse, os, sys, time, requests, json
+from dotenv import load_dotenv
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Load environment variables from .env file - specify the path explicitly
+dotenv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+load_dotenv(dotenv_path)
+
+# Debug output to verify environment loading
+api_key = os.getenv("OPENROUTER_API_KEY")
+logging.info(f"API Key found: {api_key is not None}")
+if api_key:
+    logging.info(f"API Key length: {len(api_key)}")
+    logging.info(f"API Key prefix: {api_key[:10]}...")
+# Model and endpoint configuration
 MODEL="meta-llama/llama-4-maverick:free"
-ENDPOINT="https://openrouter.ai/v1/chat/completions"
+ENDPOINT="https://openrouter.ai/api/v1/chat/completions"  # Corrected endpoint with /api/
 def build_prompt(args):
     return f"Write five fundraising emails and four social captions for the {args.event} on {args.date} in a {args.tone} tone."
 def chat_completion(prompt):
-    key=os.getenv("OPENROUTER_API_KEY")
+    # Explicitly get the API key from environment
+    key = os.environ.get("OPENROUTER_API_KEY")
+
+    # Final check
     if not key:
         sys.exit("missing OPENROUTER_API_KEY")
-    payload={"model":MODEL,"messages":[{"role":"user","content":prompt}]}
+    
+    # Check if API key has the correct format (should start with sk-or-)
+    if not key.startswith("sk-or-"):
+        print(f"Warning: API key format may be incorrect. OpenRouter keys typically start with 'sk-or-'", file=sys.stderr)
+    
+    payload={
+        "model": MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7,  # Adding reasonable temperature
+        "max_tokens": 2000   # Setting reasonable max_tokens
+    }
+    
+    headers={
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json", 
+        "HTTP-Referer": "https://nyla-nonprofit.org", 
+        "X-Title": "Nyla Nonprofit Email Generator"
+    }
+    
+    print(f"Sending request to {ENDPOINT}...", file=sys.stderr)
     t0=time.time()
-    r=requests.post(ENDPOINT,headers={"Authorization":f"Bearer {key}","Content-Type":"application/json"},json=payload,timeout=60)
-    dt=time.time()-t0
-    if r.status_code!=200:
-        sys.exit(f"HTTP {r.status_code}: {r.text[:120]}")
-    print(f"done in {dt:.2f}s",file=sys.stderr)
-    return r.json()["choices"][0]["message"]["content"]
+    
+    try:
+        r=requests.post(ENDPOINT, headers=headers, json=payload, timeout=60)
+        dt=time.time()-t0
+        
+        print(f"Request completed in {dt:.2f}s with status code {r.status_code}", file=sys.stderr)
+        
+        # Print response for debugging
+        print(f"Response headers: {r.headers}", file=sys.stderr)
+        print(f"Response text (first 200 chars): {r.text[:200]}", file=sys.stderr)
+        
+        if r.status_code != 200:
+            sys.exit(f"HTTP {r.status_code}: {r.text[:120]}")
+        
+        # Try to parse JSON, handle errors explicitly
+        try:
+            response_json = r.json()
+            return response_json["choices"][0]["message"]["content"]
+        except json.JSONDecodeError as e:
+            sys.exit(f"Failed to parse JSON response: {e}. Response: {r.text[:200]}")
+        except KeyError as e:
+            sys.exit(f"Expected key not found in response: {e}. Response structure: {response_json}")
+    
+    except requests.exceptions.RequestException as e:
+        sys.exit(f"Request failed: {e}")
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--event",default="Community Gala"); p.add_argument("--date",default="TBD"); p.add_argument("--tone",default="upbeat"); p.add_argument("--dry-run",action="store_true")
